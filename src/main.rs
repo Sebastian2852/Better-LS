@@ -16,6 +16,12 @@ struct Cli {
     path: Option<PathBuf>,
     #[arg(short, long)]
     json: bool,
+
+    #[arg(long)]
+    hide_dirs: bool,
+
+    #[arg(long)]
+    hide_files: bool,
 }
 
 #[derive(Debug, Display, Serialize)]
@@ -38,15 +44,15 @@ struct FileEntry {
 
 fn main() {
     let cli = Cli::parse();
-    let path = cli.path.unwrap_or(PathBuf::from("."));
+    let path = cli.path.clone().unwrap_or(PathBuf::from("."));
 
     if let Ok(does_exists) = fs::exists(&path) {
         if does_exists {
             if cli.json {
-                let get_files = get_files(&path);
+                let get_files = get_files(&path, &cli);
                 println!("{}", serde_json::to_string(&get_files).unwrap_or("Cannot parse JSON".to_string()))
             } else {
-                print_table(path);
+                print_table(path, &cli);
             }
         } else { println!("{}", "Path does not exist".red()) }
     } else {
@@ -54,8 +60,8 @@ fn main() {
     }
 }
 
-fn print_table(path: PathBuf) {
-    let get_files = get_files(&path);
+fn print_table(path: PathBuf, cli: &Cli) {
+    let get_files = get_files(&path, cli);
     let mut table = Table::new(get_files);
     table.with(Style::rounded());
     table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
@@ -65,12 +71,22 @@ fn print_table(path: PathBuf) {
     println!("{}", table);
 }
 
-fn get_files(path: &Path) -> Vec<FileEntry> {
+fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
     let mut data = Vec::default();
 
     if let Ok(read_dir) = fs::read_dir(path) {
         for entry in read_dir {
             if let Ok(file) = entry {
+                if let Ok(meta) = fs::metadata(&file.path()) {
+                    if meta.is_dir() && cli.hide_dirs {
+                        continue;
+                    }
+
+                    if meta.is_file() && cli.hide_files {
+                        continue;
+                    }
+                }
+
                 data.push(map_data(file));
             }
         }
