@@ -1,7 +1,7 @@
-use std::{ fmt::Write, fs::{ self, DirEntry }, path::{ Path, PathBuf } };
+use std::{ fs::{ self, DirEntry }, path::{ Path, PathBuf } };
 use chrono::{ DateTime, Utc };
 use clap::{ Parser, ValueEnum };
-use indicatif::{ ProgressBar, ProgressState, ProgressStyle };
+use indicatif::{ ProgressBar, ProgressStyle };
 use regex::Regex;
 use serde::Serialize;
 use strum::Display;
@@ -112,9 +112,6 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
                 "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len}"
             )
                 .unwrap()
-                .with_key("eta", |state: &ProgressState, w: &mut dyn Write|
-                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-                )
                 .progress_chars("#>-")
         );
 
