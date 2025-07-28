@@ -1,6 +1,7 @@
 use std::{ fs::{ self, DirEntry }, path::{ Path, PathBuf } };
 use chrono::{ DateTime, Utc };
 use clap::Parser;
+use regex::Regex;
 use serde::Serialize;
 use strum::Display;
 use owo_colors::{ OwoColorize };
@@ -14,8 +15,12 @@ use tabled::{ settings::{ object::{ Columns, Rows }, Color, Style }, Table, Tabl
 )]
 struct Cli {
     path: Option<PathBuf>,
+
     #[arg(short, long)]
     json: bool,
+
+    #[arg(short, long)]
+    regex: Option<String>,
 
     #[arg(long)]
     hide_dirs: bool,
@@ -62,6 +67,12 @@ fn main() {
 
 fn print_table(path: PathBuf, cli: &Cli) {
     let get_files = get_files(&path, cli);
+
+    if get_files.is_empty() {
+        println!("{}", "No files found".yellow());
+        return;
+    }
+
     let mut table = Table::new(get_files);
     table.with(Style::rounded());
     table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
@@ -73,6 +84,7 @@ fn print_table(path: PathBuf, cli: &Cli) {
 
 fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
     let mut data = Vec::default();
+    let re = Regex::new(&cli.regex.clone().unwrap_or(String::default())).unwrap();
 
     if let Ok(read_dir) = fs::read_dir(path) {
         for entry in read_dir {
@@ -85,6 +97,16 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
                     if meta.is_file() && cli.hide_files {
                         continue;
                     }
+                } else {
+                    println!("{}", "Failed to get metadata; ignoring --hide-dirs and --hide-files".yellow())
+                }
+
+                if let Some(file_name) = file.file_name().to_str() {
+                    if !re.is_match(file_name) {
+                        continue;
+                    }
+                } else {
+                    println!("{}", "Failed to get file name; ignoring regex options".yellow())
                 }
 
                 data.push(map_data(file));
