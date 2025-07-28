@@ -59,9 +59,20 @@ jobs:
 
       - name: Detect binary name
         id: bin_name
+        shell: bash
+        if: runner.os != 'Windows'
         run: |
-          BIN_NAME=$(basename $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].targets[] | select(.kind[]=="bin").name'))
+          BIN_NAME=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].targets[] | select(.kind[]=="bin").name' | head -n 1)
           echo "BIN_NAME=$BIN_NAME" >> $GITHUB_ENV
+
+      - name: Detect binary name (Windows)
+        id: bin_name_win
+        shell: pwsh
+        if: runner.os == 'Windows'
+        run: |
+          $meta = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+          $binName = $meta.packages[0].targets | Where-Object { $_.kind -contains 'bin' } | Select-Object -First 1 -ExpandProperty name
+          echo "BIN_NAME=$binName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Build Release
         run: cargo build --release --locked --verbose --target ${{ matrix.target }}
