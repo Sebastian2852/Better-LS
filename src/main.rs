@@ -1,6 +1,6 @@
 use std::{ fs::{ self, DirEntry }, path::{ Path, PathBuf } };
 use chrono::{ DateTime, Utc };
-use clap::Parser;
+use clap::{ Parser, ValueEnum };
 use regex::Regex;
 use serde::Serialize;
 use strum::Display;
@@ -22,11 +22,21 @@ struct Cli {
     #[arg(short, long)]
     regex: Option<String>,
 
+    #[arg(short, long)]
+    sort: Option<SortBy>,
+
     #[arg(long)]
     hide_dirs: bool,
 
     #[arg(long)]
     hide_files: bool,
+}
+#[derive(Debug, ValueEnum, Clone)]
+enum SortBy {
+    None,
+    Name,
+    Modified,
+    Size,
 }
 
 #[derive(Debug, Display, Serialize)]
@@ -55,11 +65,16 @@ fn main() {
         if does_exists {
             if cli.json {
                 let get_files = get_files(&path, &cli);
-                println!("{}", serde_json::to_string(&get_files).unwrap_or("Cannot parse JSON".to_string()))
+                println!(
+                    "{}",
+                    serde_json::to_string(&get_files).unwrap_or("Cannot parse JSON".to_string())
+                )
             } else {
                 print_table(path, &cli);
             }
-        } else { println!("{}", "Path does not exist".red()) }
+        } else {
+            println!("{}", "Path does not exist".red())
+        }
     } else {
         println!("{}", "Error reading directory (missing permissions?)".yellow())
     }
@@ -98,7 +113,10 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
                         continue;
                     }
                 } else {
-                    println!("{}", "Failed to get metadata; ignoring --hide-dirs and --hide-files".yellow())
+                    println!(
+                        "{}",
+                        "Failed to get metadata; ignoring --hide-dirs and --hide-files".yellow()
+                    );
                 }
 
                 if let Some(file_name) = file.file_name().to_str() {
@@ -106,12 +124,25 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
                         continue;
                     }
                 } else {
-                    println!("{}", "Failed to get file name; ignoring regex options".yellow())
+                    println!("{}", "Failed to get file name; ignoring regex options".yellow());
                 }
 
                 data.push(map_data(file));
             }
         }
+    }
+
+    match cli.sort.clone().unwrap_or(SortBy::None) {
+        SortBy::Name => {
+            data.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        }
+        SortBy::Modified => {
+            data.sort_by(|a, b| a.last_modified.cmp(&b.last_modified));
+        }
+        SortBy::Size => {
+            data.sort_by(|a, b| a.len_bytes.cmp(&b.len_bytes));
+        }
+        SortBy::None => {}
     }
 
     return data;
