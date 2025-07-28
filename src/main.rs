@@ -1,6 +1,7 @@
-use std::{ fs::{ self, DirEntry }, path::{ Path, PathBuf } };
+use std::{ fmt::Write, fs::{ self, DirEntry }, path::{ Path, PathBuf } };
 use chrono::{ DateTime, Utc };
 use clap::{ Parser, ValueEnum };
+use indicatif::{ ProgressBar, ProgressState, ProgressStyle };
 use regex::Regex;
 use serde::Serialize;
 use strum::Display;
@@ -102,7 +103,25 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
     let re = Regex::new(&cli.regex.clone().unwrap_or(String::default())).unwrap();
 
     if let Ok(read_dir) = fs::read_dir(path) {
-        for entry in read_dir {
+        let entries: Vec<_> = read_dir.collect();
+
+        let files_amount = entries.len() as u64;
+        let pb = ProgressBar::new(files_amount);
+        pb.set_style(
+            ProgressStyle::with_template(
+                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len}"
+            )
+                .unwrap()
+                .with_key("eta", |state: &ProgressState, w: &mut dyn Write|
+                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+                )
+                .progress_chars("#>-")
+        );
+
+        let mut entry_index: u64 = 0;
+        for entry in entries {
+            pb.set_position(entry_index);
+            entry_index += 1;
             if let Ok(file) = entry {
                 if let Ok(meta) = fs::metadata(&file.path()) {
                     if meta.is_dir() && cli.hide_dirs {
@@ -129,6 +148,7 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
 
                 data.push(map_data(file));
             }
+            pb.finish_with_message(format!("{} Files", files_amount));
         }
     }
 
@@ -166,8 +186,9 @@ fn map_data(file: DirEntry) -> FileEntry {
             },
         };
     } else {
+        println!("{}", "Failed to get metadata".red());
         return FileEntry {
-            name: "UNKOWN".to_string(),
+            name: "UNKOWN".red().to_string(),
             len_bytes: 0,
             last_modified: "".to_string(),
             file_type: FileType::File,
