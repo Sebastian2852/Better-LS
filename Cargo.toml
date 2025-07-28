@@ -1,5 +1,7 @@
 [package]
 name = "betterls"
+description = "Replcment for the `ls` command"
+license = "MIT"
 version = "1.0.0"
 edition = "2021"
 
